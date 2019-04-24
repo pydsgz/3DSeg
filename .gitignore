@@ -1,0 +1,11 @@
+# Python
+*.pyc
+
+# Pycharm settings
+.idea
+
+# Local files
+output
+models
+vnet/hip_train_vnet.py
+vnet/train_*.py
