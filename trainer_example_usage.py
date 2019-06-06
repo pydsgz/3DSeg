@@ -62,7 +62,7 @@ if __name__ == "__main__":
                         help='Set which segmentation volumes will be used to '
                              'during testing. Set 0 for multi-rater, '
                              'set 1 for multi-atlas, and 2 for single-rater.')
-    parser.add_argument('--volume_dims', type=list, default=[152, 152, 152],
+    parser.add_argument('--volume_dims', type=list, default=[128, 128, 128],
                         help='Dimensions of training volume. Resampling to '
                              'this dimension will be done during augmentation.')
     parser.add_argument('--epochs', type=int, default=10000,
@@ -82,17 +82,23 @@ if __name__ == "__main__":
                         help='Random seed number to use for Tensorflow and '
                              'Numpy.')
     parser.add_argument('--base_dir', type=str,
-                        default='./vols_all/',
+                        default='./data/',
                         help='Location of all volumes and its '
                              'segmentations.')
     parser.add_argument('--base_dir_t1_swi', type=str,
-                    default='./vols_all_3T_t1_t2_swi/',
+                    default='./data_multi/',
                         help='Location of all T1 and SWI MRI volumes and its '
                              'segmentations.')
     parser.add_argument('--uniq_str', type=str,
                         default='vnet',
                         help='Unique string to prepend to prediction volumes,'
                              'model output and tensorboard events.')
+    parser.add_argument('--fp_vols', type=str,
+                        default='Case%02d.mhd',
+                        help='File pattern of volumes.')
+    parser.add_argument('--fp_segs', type=str,
+                        default='Case%02d_segmentation.mhd',
+                        help='File pattern of segmentation volumes.')
 
     args = parser.parse_args()
 

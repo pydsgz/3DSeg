@@ -83,16 +83,16 @@ class Segmentation3DTrainer(DLTrainer):
         self.N_EPOCHS = args.epochs
 
         # Train and test index
-        self.train_idx = np.arange(1, 21)
-        self.test_idx = [9, 12, 13, 14, 17]
+        self.train_idx = np.arange(0, 50)
+        self.test_idx = [45, 46, 47, 48, 49]
         self.train_idx = list(set(self.train_idx) - set(self.test_idx))
 
         # Region indices to include during training
-        self.select_idx = list(np.arange(23))
+        self.select_idx = list(np.arange(2))
         # Total number of regions to segment.
         self.n_class = len(self.select_idx)
         # Total number of segmentable regions.
-        self.total_class = 23
+        self.total_class = 2
 
         # Unique string to save model, output predictions, and augmented
         # volumnes.
@@ -103,24 +103,27 @@ class Segmentation3DTrainer(DLTrainer):
         # input volumes have self.args.volume_dims dimensions.
         if self.COMPOSITE_TRANSFORM:
             logging.info('Will use composite transform')
-            self.fp_mri = 'S%02d_SWI.nii.gz'
-            self.fp_mri_t1 = 'S%02d_T1.nii.gz'
-            self.fp_mri_swi = 'S%02d_SWI.nii.gz'
-            self.fp_seg = 'S%02d_SEGjoint_from_gold_set1.nii.gz'
+            self.fp_mri = args.fp_vols
+            # self.fp_mri_t1 = 'S%02d_T1.nii.gz'
+            # self.fp_mri_swi = 'S%02d_SWI.nii.gz'
+            self.fp_seg = args.fp_segs
             self.fp_seg_multi_rater = 'S%02d_SEGjoint_from_gold_set2.nii.gz'
             self.fp_seg_single_rater = 'S%02d_SEGgold.nii.gz'
         else:
-            self.fp_mri = 'S%02d_SWI_resampled_152iso.nii.gz'
-            self.fp_seg = 'S%02d_SEGjoint_from_gold_set1_resampled_152iso.nii' \
-                          '.gz'
-            self.fp_seg_multi_rater = \
-                'S%02d_SEGjoint_from_gold_set2_resampled_152iso' \
-                '.nii.gz'
-            self.fp_seg_single_rater = 'S%02d_SEGgold_resampled_152iso.nii.gz'
+            raise NotImplementedError('Deprecated: no need to load resampled '
+                                      'data. Just set composite transform to '
+                                      'True.')
+            # self.fp_mri = 'S%02d_SWI_resampled_152iso.nii.gz'
+            # self.fp_seg = 'S%02d_SEGjoint_from_gold_set1_resampled_152iso.nii' \
+            #               '.gz'
+            # self.fp_seg_multi_rater = \
+            #     'S%02d_SEGjoint_from_gold_set2_resampled_152iso' \
+            #     '.nii.gz'
+            # self.fp_seg_single_rater = 'S%02d_SEGgold_resampled_152iso.nii.gz'
 
         # Create four folders to put all outputs [model, pred_output, logs,
         # augmented_vols]
-        self._init_folders()
+        self._create_folders()
 
         # Load data splits.
         if args.train_model:
@@ -130,7 +133,8 @@ class Segmentation3DTrainer(DLTrainer):
         else:
             self.test_set = self.load_test_set()
 
-    def init_folders(self):
+
+    def _create_folders(self):
         """
         Create four folders which will be used to save all outputs.
 
@@ -155,21 +159,21 @@ class Segmentation3DTrainer(DLTrainer):
         fp_seg = self.fp_seg
 
         # List of MRI and segmentation volume paths
-        mri_vols_path = [self.fp_mri % (x) for x in self.train_idx]
+        mri_vols_path = [self.fp_mri % x for x in self.train_idx]
         mri_vols_path = np.sort(
             [os.path.join(self.base_dir, x) for x in mri_vols_path])
-        seg_vols_path = [fp_seg % (x) for x in self.train_idx]
+        seg_vols_path = [fp_seg % x for x in self.train_idx]
         seg_vols_path = np.sort(
             [os.path.join(self.base_dir, x) for x in seg_vols_path])
 
         # Multi-modal, T1, SWI, and SWI
         if self.MULTI_CHANNEL:
-            mri_vols_path_t1 = [self.fp_mri_t1 % (x) for x in self.train_idx]
+            mri_vols_path_t1 = [self.fp_mri_t1 % x for x in self.train_idx]
             mri_vols_path_t1 = np.sort(
                 [os.path.join(self.base_dir_t1_swi, x) for x in
                  mri_vols_path_t1])
 
-            mri_vols_path_swi = [self.fp_mri_swi % (x) for x in self.train_idx]
+            mri_vols_path_swi = [self.fp_mri_swi % x for x in self.train_idx]
             mri_vols_path_swi = np.sort(
                 [os.path.join(self.base_dir_t1_swi, x) for x in
                  mri_vols_path_swi])
@@ -177,14 +181,14 @@ class Segmentation3DTrainer(DLTrainer):
         # Read mri and segmentation volumes into memory
         imgs = []
         for k, v in enumerate(zip(mri_vols_path, seg_vols_path)):
-            itkVol = sitk.ReadImage(v[0])
-            itkSeg = sitk.ReadImage(v[1])
+            itkvol = sitk.ReadImage(v[0])
+            itk_seg = sitk.ReadImage(v[1])
             if self.MULTI_CHANNEL:
-                itkVol_t1 = sitk.ReadImage(mri_vols_path_t1[k])
-                itkVol_swi = sitk.ReadImage(mri_vols_path_swi[k])
+                itkvol_t1 = sitk.ReadImage(mri_vols_path_t1[k])
+                itkvol_swi = sitk.ReadImage(mri_vols_path_swi[k])
                 # SWI, T1, SWI volumes
-                itkVol = [itkVol, itkVol_t1, itkVol_swi]
-            imgs.append((itkVol, itkSeg))
+                itkvol = [itkvol, itkvol_t1, itkvol_swi]
+            imgs.append((itkvol, itk_seg))
         return imgs
 
     def load_val_set(self):
@@ -207,16 +211,16 @@ class Segmentation3DTrainer(DLTrainer):
         # Read mri and segmentation volumes into memory
         imgs = []
         for k, v in enumerate(zip(mri_vols, seg_vols)):
-            itkVol = v[0]
-            itkSeg = v[1]
+            itkvol = v[0]
+            itk_seg = v[1]
 
             # Resample to target resolution and spacing
-            if isinstance(itkVol, list):
+            if isinstance(itkvol, list):
                 new_itk_vol = []
-                for vol_cur in itkVol:
+                for vol_cur in itkvol:
                     size = self.VOLUME_SIZE[::-1]  # Dimension in z, y, x
                     origin_vol = vol_cur.GetOrigin()
-                    origin_seg = itkSeg.GetOrigin()
+                    origin_seg = itk_seg.GetOrigin()
                     spacing = [1.0, 1.0, 1.0]
                     direction = vol_cur.GetDirection()
                     transform = sitk.Transform(len(size), sitk.sitkIdentity)
@@ -224,24 +228,24 @@ class Segmentation3DTrainer(DLTrainer):
                                             sitk.sitkLinear, origin_vol,
                                             spacing, direction)
                     new_itk_vol.append(vol_cur)
-                itkVol = new_itk_vol
-                itkSeg = sitk.Resample(itkSeg, size, transform,
-                                       sitk.sitkNearestNeighbor, origin_seg,
-                                       spacing, direction)
+                itkvol = new_itk_vol
+                itk_seg = sitk.Resample(itk_seg, size, transform,
+                                        sitk.sitkNearestNeighbor, origin_seg,
+                                        spacing, direction)
             else:
                 size = self.VOLUME_SIZE[::-1]  # Dimension in z, y, x
-                origin_vol = itkVol.GetOrigin()
-                origin_seg = itkSeg.GetOrigin()
+                origin_vol = itkvol.GetOrigin()
+                origin_seg = itk_seg.GetOrigin()
                 spacing = [1.0, 1.0, 1.0]
-                direction = itkVol.GetDirection()
+                direction = itkvol.GetDirection()
                 transform = sitk.Transform(len(size), sitk.sitkIdentity)
-                itkVol = sitk.Resample(itkVol, size, transform,
+                itkvol = sitk.Resample(itkvol, size, transform,
                                        sitk.sitkLinear, origin_vol,
                                        spacing, direction)
-                itkSeg = sitk.Resample(itkSeg, size, transform,
-                                       sitk.sitkNearestNeighbor, origin_seg,
-                                       spacing, direction)
-            imgs.append((itkVol, itkSeg))
+                itk_seg = sitk.Resample(itk_seg, size, transform,
+                                        sitk.sitkNearestNeighbor, origin_seg,
+                                        spacing, direction)
+            imgs.append((itkvol, itk_seg))
         return imgs, train_set
 
     def load_test_set(self):
@@ -253,36 +257,36 @@ class Segmentation3DTrainer(DLTrainer):
         """
         if self.MULTI_CHANNEL:
             self.test_idx.remove(12)  # T1 is missing in Subject 12
-        test_mri_vols_path = [self.fp_mri % (x) for x in self.test_idx]
+        test_mri_vols_path = [self.fp_mri % x for x in self.test_idx]
         test_mri_vols_path = np.sort([os.path.join(self.base_dir, x) for x in \
                                       test_mri_vols_path])
-        test_seg_vols_path = [self.fp_seg % (x) for x in self.test_idx]
+        test_seg_vols_path = [self.fp_seg % x for x in self.test_idx]
         test_seg_vols_path = np.sort([os.path.join(self.base_dir, x) for x in
                                       test_seg_vols_path])
 
         # Multi-modal, T1, SWI, and SWI
         if self.MULTI_CHANNEL:
-            test_mri_vols_path_t1 = [self.fp_mri_t1 % (x) for x in
+            test_mri_vols_path_t1 = [self.fp_mri_t1 % x for x in
                                      self.test_idx]
             test_mri_vols_path_t1 = np.sort(
                 [os.path.join(self.base_dir_t1_swi, x) for x in
                  test_mri_vols_path_t1])
 
-            test_mri_vols_path_swi = [self.fp_mri_swi % (x) for x in
+            test_mri_vols_path_swi = [self.fp_mri_swi % x for x in
                                       self.test_idx]
             test_mri_vols_path_swi = np.sort(
                 [os.path.join(self.base_dir_t1_swi, x) for x in
                  test_mri_vols_path_swi])
 
         # Multi-rater volumes
-        test_seg_vols_path_multi_rater = [self.fp_seg_multi_rater % (x) for x in
+        test_seg_vols_path_multi_rater = [self.fp_seg_multi_rater % x for x in
                                           self.test_idx]
         test_seg_vols_path_multi_rater = np.sort(
             [os.path.join(self.base_dir, x) for x in
              test_seg_vols_path_multi_rater])
 
         # Single-rater volumes
-        test_seg_vols_path_single_rater = [self.fp_seg_single_rater % (x) for
+        test_seg_vols_path_single_rater = [self.fp_seg_single_rater % x for
                                            x in self.test_idx]
         test_seg_vols_path_single_rater = np.sort([os.path.join(self.base_dir,
                                                                 x) for x in
@@ -305,16 +309,16 @@ class Segmentation3DTrainer(DLTrainer):
         # Read mri and segmentation volumes into memory
         imgs = []
         for k, v in enumerate(zip(test_mri_vols_path, test_seg_vols_path)):
-            itkVol = sitk.ReadImage(v[0])
-            itkSeg = sitk.ReadImage(v[1])
+            itkvol = sitk.ReadImage(v[0])
+            itk_seg = sitk.ReadImage(v[1])
 
             # Resample data to desired size and spacing
             if self.MULTI_CHANNEL:
-                itkVol_t1 = sitk.ReadImage(test_mri_vols_path_t1[k])
-                itkVol_swi = sitk.ReadImage(test_mri_vols_path_swi[k])
+                itkvol_t1 = sitk.ReadImage(test_mri_vols_path_t1[k])
+                itkvol_swi = sitk.ReadImage(test_mri_vols_path_swi[k])
 
                 # Resample volumes
-                vol_list = [itkVol, itkVol_t1, itkVol_swi]
+                vol_list = [itkvol, itkvol_t1, itkvol_swi]
                 new_vol_list = []
                 for vol in vol_list:
                     size = self.VOLUME_SIZE[::-1]  # Dimension in z, y, x
@@ -327,27 +331,27 @@ class Segmentation3DTrainer(DLTrainer):
                                             spacing, direction)
                     new_vol_list.append(vol_cur)
                 # Convert itk vols to numpy array
-                np_vol = [utils.itk_to_numpy(x) for x in new_vol_list]
+                np_vol = [utils.itk_to_numpyx for x in new_vol_list]
                 np_vol = np.stack(np_vol, -1).astype(float)
             else:
                 # Resample single volume
                 size = self.VOLUME_SIZE[::-1]  # Dimension in z, y, x
-                origin_vol = itkVol.GetOrigin()
+                origin_vol = itkvol.GetOrigin()
                 spacing = [1.0, 1.0, 1.0]
-                direction = itkVol.GetDirection()
+                direction = itkvol.GetDirection()
                 transform = sitk.Transform(len(size), sitk.sitkIdentity)
-                vol_cur = sitk.Resample(itkVol, size, transform,
+                vol_cur = sitk.Resample(itkvol, size, transform,
                                         sitk.sitkLinear, origin_vol,
                                         spacing, direction)
                 np_vol = utils.itk_to_numpy(vol_cur)
 
             # Resample segmentation
-            origin_seg = itkSeg.GetOrigin()
+            origin_seg = itk_seg.GetOrigin()
             size = self.VOLUME_SIZE[::-1]
             spacing = [1.0, 1.0, 1.0]
-            direction = itkSeg.GetDirection()
+            direction = itk_seg.GetDirection()
             transform = sitk.Transform(len(size), sitk.sitkIdentity)
-            vol_seg = sitk.Resample(itkSeg, size, transform,
+            vol_seg = sitk.Resample(itk_seg, size, transform,
                                     sitk.sitkNearestNeighbor, origin_seg,
                                     spacing, direction)
             np_seg = utils.itk_to_np_segmentation(vol_seg, self.total_class,
@@ -369,8 +373,9 @@ class Segmentation3DTrainer(DLTrainer):
         else:
             vol_size = tuple(self.VOLUME_SIZE) + (1,)
         model = build_vnet_network(inputs=keras.Input(shape=vol_size),
-                                        depth=3, filters=[16, 32, 64, 128],
-                                        dropoutAt=[None, None, None, None],
+                                        depth=4, filters=[16, 32, 64, 128, 256],
+                                        dropoutAt=[None, None, None, None,
+                                                   None],
                                         multidice=False, n_class=self.n_class,
                                         group_normalize=True,
                                    l_rate=self.L_RATE)
@@ -410,7 +415,7 @@ class Segmentation3DTrainer(DLTrainer):
 
             rotationAngleRanges=[degree2euler(15), degree2euler(15),
                                  degree2euler(15)],
-            translationRanges=[25.0, 25.0, 25.0],
+            translationRanges=[15.0, 15.0, 15.0],
             FlipProb=[0.5, 0.5, 0.5],
             deformationSigma=(0.0, 0.05),
             cropZoomLevelRange=[(0.9, 1.1), (0.9, 1.1), (0.9, 1.1)],
@@ -439,7 +444,7 @@ class Segmentation3DTrainer(DLTrainer):
         for _, augm_vols, train_idx in vaug_gen:
             # Write data into batch array.
             if self.MULTI_CHANNEL:
-                np_vol = [utils.itk_to_numpy(x) for x in augm_vols[0]]
+                np_vol = [utils.itk_to_numpyx for x in augm_vols[0]]
                 np_vol = np.stack(np_vol)
                 image = np_vol.reshape(vol_size)
                 batch_img[batch_index, :, :, :, :] = image
@@ -729,7 +734,7 @@ class Segmentation3DTrainer(DLTrainer):
         # res_df.index = list(region_names.names)[:self.n_class]
 
         # Save predicted segmentations and dataframe metrics in one location
-        pred_seg_out_path = np.sort([fp_pred_out % (x) for x in self.test_idx])
+        pred_seg_out_path = np.sort([fp_pred_out % x for x in self.test_idx])
         dum_counter = 0
         pred_out_base_dir = './pred_output/%s_%sclass/' % (self.UNIQ_STR,
                                                            str(self.n_class))
@@ -741,10 +746,10 @@ class Segmentation3DTrainer(DLTrainer):
         # Save per volume dice scores and hausdorff distance
         res_df.to_excel(test_pred_arr_fname)
 
-        test_mri_vols_path = [self.fp_mri % (x) for x in self.test_idx]
+        test_mri_vols_path = [self.fp_mri % x for x in self.test_idx]
         test_mri_vols_path = np.sort([os.path.join(self.base_dir, x) for x in \
                                       test_mri_vols_path])
-        test_seg_vols_path = [self.fp_seg % (x) for x in self.test_idx]
+        test_seg_vols_path = [self.fp_seg % x for x in self.test_idx]
         test_seg_vols_path = np.sort([os.path.join(self.base_dir, x) for x in
                                       test_seg_vols_path])
         res_pred = np.argmax(test_seg_pred_clean, -1)
