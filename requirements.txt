@@ -21,7 +21,7 @@ coverage==3.7.1
 cryptography==2.1.4
 cssselect==1.0.3
 cycler==0.10.0
-dask==1.1.1
+dask==2021.10.0
 datalad==0.9.2
 decorator==4.2.1
 duecredit==0.6.3
