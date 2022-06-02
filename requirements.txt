@@ -37,7 +37,7 @@ grabbit==0.1.1
 graphviz==0.10.1
 grpcio==1.15.0
 h5py==2.7.1
-html5lib==0.9999999
+html5lib==0.99999999
 httpretty==0.8.14
 humanize==0.5.1
 hyperlink==18.0.0
